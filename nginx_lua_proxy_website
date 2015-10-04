@@ -1,0 +1,43 @@
+upstream real_website {
+    server 127.0.0.1:8080;
+}
+upstream real_website_secure {
+    server 127.0.0.1:8083;
+}
+
+server {
+        listen 80;
+        listen 443 ssl;
+
+        server_name your_domain;
+
+        location / {
+            content_by_lua_file "/path/to/nginx_lua_cache_proxy.lua";
+            if ( $https != 'on' ) {
+                error_page 305 = @lua_305;
+                error_page 302 = @lua_305;
+            }
+            if ( $https = 'on' ) {
+                error_page 305 = @lua_305_secure;
+                error_page 302 = @lua_305_secure;
+            }
+        }
+        location @lua_305 {
+            proxy_pass http://real_website;
+        }
+
+        location @lua_305_secure {
+            proxy_redirect off;
+            proxy_set_header Host $host:$server_port;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Ssl on;
+            #proxy_pass https://localhost:8083;
+            proxy_pass https://real_website_secure;
+        }
+
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|woff)$ {
+                expires max;
+                log_not_found off;
+                proxy_pass http://real_website;
+        }
+}
